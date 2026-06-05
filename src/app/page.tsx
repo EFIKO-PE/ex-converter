@@ -23,13 +23,19 @@ interface LogEntry {
 }
 
 
+interface CapturedPhoto {
+  id: string;
+  dataUrl: string;
+  base64: string;
+  sizeKB: number;
+}
+
 export default function Home() {
   const [numeroHC, setNumeroHC] = useState('');
   const [nombrePaciente, setNombrePaciente] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [rawBase64, setRawBase64] = useState<string | null>(null);
-  const [imageSizeKB, setImageSizeKB] = useState<number | null>(null);
+  const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
+  const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -37,7 +43,9 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const currentStep = !capturedImage ? (numeroHC && nombrePaciente ? 1 : 0) : 2;
+  const currentStep = photos.length === 0 ? (numeroHC.trim() && nombrePaciente.trim() ? 1 : 0) : 2;
+
+  const activePhoto = activePhotoIndex !== null && photos[activePhotoIndex] ? photos[activePhotoIndex] : null;
 
   const addLog = (text: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -92,41 +100,69 @@ export default function Home() {
     const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
     const b64 = dataUrl.split(',')[1];
     const kb = window.atob(b64).length / 1024;
-    setCapturedImage(dataUrl);
-    setRawBase64(b64);
-    setImageSizeKB(kb);
+    
+    const newPhoto: CapturedPhoto = {
+      id: Date.now().toString(),
+      dataUrl,
+      base64: b64,
+      sizeKB: kb
+    };
+    
+    setPhotos((prev) => {
+      const nextPhotos = [...prev, newPhoto];
+      setActivePhotoIndex(nextPhotos.length - 1);
+      return nextPhotos;
+    });
+    
     setIsCompressing(false);
-    addLog(`Captura lista · ${kb.toFixed(1)} KB · ${w}px ancho.`, 'success');
+    addLog(`Foto ${photos.length + 1} capturada · ${kb.toFixed(1)} KB · ${w}px ancho.`, 'success');
     stopCamera();
   };
 
-  const retakePhoto = () => {
-    setCapturedImage(null); setRawBase64(null); setImageSizeKB(null);
-    addLog('Nueva toma iniciada.', 'info');
-    startCamera();
+  const deletePhoto = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPhotos((prev) => {
+      const nextPhotos = prev.filter(p => p.id !== id);
+      if (nextPhotos.length === 0) {
+        setActivePhotoIndex(null);
+      } else {
+        setActivePhotoIndex(Math.max(0, nextPhotos.length - 1));
+      }
+      return nextPhotos;
+    });
+    addLog('Foto eliminada del carrete.', 'info');
   };
 
   const uploadToGoogleSheets = async () => {
     if (!numeroHC.trim()) { addLog('Falta Número de Historia Clínica.', 'error'); return; }
     if (!nombrePaciente.trim()) { addLog('Falta Nombre del Paciente.', 'error'); return; }
-    if (!rawBase64) { addLog('No hay imagen para subir.', 'error'); return; }
+    if (photos.length === 0) { addLog('No hay fotos para subir.', 'error'); return; }
+    
     setIsUploading(true);
-    addLog('Enviando datos a Google Sheets...', 'info');
+    addLog(`Iniciando subida de ${photos.length} fotos a Google Sheets...`, 'info');
     try {
       const res = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ numeroHC: numeroHC.trim(), nombrePaciente: nombrePaciente.trim(), imageBase64: rawBase64, sizeKB: imageSizeKB, timestamp: new Date().toISOString() })
+        body: JSON.stringify({
+          numeroHC: numeroHC.trim(),
+          nombrePaciente: nombrePaciente.trim(),
+          photos: photos.map(p => ({ imageBase64: p.base64, sizeKB: p.sizeKB })),
+          timestamp: new Date().toISOString()
+        })
       });
       const data = await res.json();
       if (res.ok) {
-        addLog(`¡Guardado exitosamente! ID: ${data.idGenerado}`, 'success');
-        alert(`✅ Subida exitosa\nID: ${data.idGenerado}\nPaciente: ${nombrePaciente}`);
-        setCapturedImage(null); setRawBase64(null); setImageSizeKB(null); setNumeroHC(''); setNombrePaciente('');
+        addLog(`¡Guardado exitosamente! ${photos.length} fotos registradas.`, 'success');
+        alert(`✅ Subida exitosa\nSe guardaron ${photos.length} fotos para el paciente:\n${nombrePaciente}`);
+        setPhotos([]);
+        setActivePhotoIndex(null);
+        setNumeroHC('');
+        setNombrePaciente('');
       } else {
         addLog(`Error al guardar: ${data.error || 'Error desconocido'}`, 'error');
       }
-    } catch {
+    } catch (error) {
       addLog('Error de conexión. Revisa tu internet.', 'error');
     } finally {
       setIsUploading(false);
@@ -236,10 +272,12 @@ export default function Home() {
 
           {/* Camera label */}
           <div className="px-5 pt-4 pb-0 flex items-center justify-between">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Visor de Captura</p>
-            {capturedImage && imageSizeKB && (
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              {isCameraActive ? 'Cámara Activa' : 'Visor de Captura'}
+            </p>
+            {!isCameraActive && activePhoto && (
               <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-[#EEF2FF] text-[#6366F1] border border-[#E0E7FF]">
-                {imageSizeKB.toFixed(1)} KB
+                Foto {(activePhotoIndex ?? 0) + 1} de {photos.length} · {activePhoto.sizeKB.toFixed(1)} KB
               </span>
             )}
           </div>
@@ -247,18 +285,18 @@ export default function Home() {
           {/* Viewport */}
           <div className="mx-4 mt-3 rounded-[16px] overflow-hidden bg-[#0F1117] aspect-[4/3] relative flex items-center justify-center">
 
-            {capturedImage && (
+            {!isCameraActive && activePhoto && (
               /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={capturedImage} alt="Captura" className="w-full h-full object-contain z-10" />
+              <img src={activePhoto.dataUrl} alt={`Captura ${(activePhotoIndex ?? 0) + 1}`} className="w-full h-full object-contain z-10" />
             )}
 
             <video
               ref={videoRef}
               autoPlay playsInline muted
-              className={`w-full h-full object-cover ${(!isCameraActive || capturedImage) ? 'hidden' : 'block'}`}
+              className={`w-full h-full object-cover ${!isCameraActive ? 'hidden' : 'block'}`}
             />
 
-            {!isCameraActive && !capturedImage && (
+            {!isCameraActive && !activePhoto && (
               <div className="flex flex-col items-center gap-3 text-center px-6">
                 {/* Scanner frame icon instead of camera icon */}
                 <div className="relative w-16 h-16">
@@ -286,55 +324,95 @@ export default function Home() {
             )}
           </div>
 
-          {/* Camera controls */}
-          <div className="px-4 pb-4 pt-3.5 flex flex-col gap-2.5">
-            {!capturedImage ? (
-              !isCameraActive ? (
+          {/* Thumbnails Carrete */}
+          {photos.length > 0 && (
+            <div className="px-4 pt-3 pb-0">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
+                {photos.map((p, idx) => (
+                  <div
+                    key={p.id}
+                    onClick={() => {
+                      setActivePhotoIndex(idx);
+                      stopCamera();
+                    }}
+                    className={`relative w-16 h-12 rounded-lg overflow-hidden border-2 cursor-pointer transition-all shrink-0 aspect-[4/3]
+                      ${activePhotoIndex === idx && !isCameraActive
+                        ? 'border-[#6366F1] ring-2 ring-[#6366F1]/20 scale-95'
+                        : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.dataUrl} alt={`Miniatura ${idx + 1}`} className="w-full h-full object-cover" />
+                    
+                    <button
+                      type="button"
+                      onClick={(e) => deletePhoto(p.id, e)}
+                      disabled={isUploading}
+                      className="absolute top-0.5 right-0.5 bg-rose-500 text-white w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-bold shadow-md hover:bg-rose-600 disabled:opacity-50 z-20 cursor-pointer"
+                      title="Eliminar"
+                    >
+                      ✕
+                    </button>
+                    
+                    <span className="absolute bottom-0.5 left-1 text-[8px] text-white bg-black/60 px-1 rounded-sm font-black">
+                      {idx + 1}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Quick Add photo button */}
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="w-full py-3.5 bg-[#6366F1] hover:bg-[#5558E3] active:scale-[0.98] text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(99,102,241,0.30)] cursor-pointer"
+                  disabled={isCameraActive || isUploading || !numeroHC.trim() || !nombrePaciente.trim()}
+                  className="w-16 h-12 rounded-lg border-2 border-dashed border-slate-300 hover:border-[#6366F1] flex flex-col items-center justify-center text-slate-400 hover:text-[#6366F1] transition-all cursor-pointer shrink-0 disabled:opacity-40"
+                  title="Tomar otra página"
                 >
                   <Camera className="w-4 h-4" />
-                  Activar Cámara
+                  <span className="text-[7px] font-bold uppercase mt-0.5">+ Foto</span>
                 </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={capturePhoto}
-                    disabled={isCompressing}
-                    className="flex-1 py-3.5 bg-[#0F1117] hover:bg-[#1F2430] active:scale-[0.98] text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(0,0,0,0.18)] cursor-pointer disabled:opacity-40"
-                  >
-                    <ImageIcon className="w-4 h-4" />
-                    Tomar Foto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={stopCamera}
-                    className="px-4 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] border border-slate-200 text-slate-500 rounded-2xl flex items-center justify-center cursor-pointer"
-                    title="Apagar"
-                  >
-                    <CameraOff className="w-4 h-4" />
-                  </button>
-                </div>
-              )
+              </div>
+            </div>
+          )}
+
+          {/* Camera controls */}
+          <div className="px-4 pb-4 pt-3 flex flex-col gap-2.5">
+            {isCameraActive ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={capturePhoto}
+                  disabled={isCompressing}
+                  className="flex-1 py-3.5 bg-[#0F1117] hover:bg-[#1F2430] active:scale-[0.98] text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(0,0,0,0.18)] cursor-pointer disabled:opacity-40"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  Tomar Foto
+                </button>
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="px-4 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] border border-slate-200 text-slate-500 rounded-2xl flex items-center justify-center cursor-pointer"
+                  title="Apagar"
+                >
+                  <CameraOff className="w-4 h-4" />
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
-                onClick={retakePhoto}
-                disabled={isUploading}
-                className="w-full py-3.5 bg-white hover:bg-slate-50 active:scale-[0.98] border-2 border-[#E2E6EF] text-[#0F1117] font-bold rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer"
+                onClick={startCamera}
+                disabled={isUploading || !numeroHC.trim() || !nombrePaciente.trim()}
+                className="w-full py-3.5 bg-[#6366F1] hover:bg-[#5558E3] active:scale-[0.98] text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(99,102,241,0.30)] cursor-pointer disabled:opacity-50"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Nueva Captura
+                <Camera className="w-4 h-4" />
+                {photos.length > 0 ? 'Capturar otra página' : 'Activar Cámara'}
               </button>
             )}
           </div>
         </div>
 
         {/* ── Upload CTA ─────────────────────────────────── */}
-        {capturedImage && (
+        {photos.length > 0 && (
           <button
             type="button"
             onClick={uploadToGoogleSheets}
@@ -344,12 +422,12 @@ export default function Home() {
             {isUploading ? (
               <>
                 <RefreshCw className="w-4.5 h-4.5 animate-spin" />
-                Subiendo a Google Sheets...
+                Subiendo {photos.length} {photos.length === 1 ? 'foto' : 'fotos'} a Google Sheets...
               </>
             ) : (
               <>
                 <UploadCloud className="w-4.5 h-4.5" />
-                Guardar en Google Sheets
+                Guardar {photos.length} {photos.length === 1 ? 'foto' : 'fotos'} en Google Sheets
                 <ChevronRight className="w-4 h-4 opacity-50" />
               </>
             )}

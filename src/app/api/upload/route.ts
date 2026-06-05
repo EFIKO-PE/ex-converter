@@ -4,7 +4,7 @@ import { google } from 'googleapis';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { numeroHC, nombrePaciente, imageBase64, sizeKB, timestamp } = body;
+    const { numeroHC, nombrePaciente, imageBase64, sizeKB, timestamp, photos } = body;
 
     // Validaciones básicas
     if (!numeroHC || typeof numeroHC !== 'string') {
@@ -19,9 +19,21 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (!imageBase64 || typeof imageBase64 !== 'string') {
+
+    // Normalizar a un arreglo de fotos
+    let itemsToUpload: Array<{ imageBase64: string; sizeKB: number | null }> = [];
+    if (photos && Array.isArray(photos)) {
+      itemsToUpload = photos.map(p => ({
+        imageBase64: p.imageBase64,
+        sizeKB: typeof p.sizeKB === 'number' ? p.sizeKB : null
+      }));
+    } else if (imageBase64 && typeof imageBase64 === 'string') {
+      itemsToUpload = [{ imageBase64, sizeKB: typeof sizeKB === 'number' ? sizeKB : null }];
+    }
+
+    if (itemsToUpload.length === 0) {
       return NextResponse.json(
-        { error: 'La imagen en formato Base64 es requerida.' },
+        { error: 'Debe proporcionar al menos una foto (imageBase64 o un arreglo de photos).' },
         { status: 400 }
       );
     }
@@ -29,46 +41,53 @@ export async function POST(request: Request) {
     // OPCIÓN A: Si está configurada la variable GOOGLE_SCRIPT_URL (Apps Script Web App)
     const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
     if (scriptUrl) {
-      console.log('Utilizando Google Apps Script para guardar los datos...');
-      const response = await fetch(scriptUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          numeroHC,
-          nombrePaciente,
-          imageBase64,
-          sizeKB,
-          timestamp,
-        }),
-      });
+      console.log(`Utilizando Google Apps Script para guardar ${itemsToUpload.length} fotos...`);
+      const results = [];
 
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('Error al parsear respuesta de Apps Script. Crudo:', text);
-        return NextResponse.json(
-          { error: 'Respuesta inválida de Google Apps Script. Asegúrate de implementarlo como Web App.' },
-          { status: 502 }
-        );
-      }
-
-      if (response.ok && data.success !== false) {
-        return NextResponse.json({
-          success: true,
-          message: 'Datos guardados exitosamente en Google Sheets vía Apps Script.',
-          idGenerado: data.idGenerado,
-          fechaCaptura: data.fechaCaptura,
+      for (let i = 0; i < itemsToUpload.length; i++) {
+        const item = itemsToUpload[i];
+        const response = await fetch(scriptUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            numeroHC,
+            nombrePaciente,
+            imageBase64: item.imageBase64,
+            sizeKB: item.sizeKB,
+            timestamp,
+          }),
         });
-      } else {
-        return NextResponse.json(
-          { error: data.error || 'Error reportado por el script de Google Apps Script.' },
-          { status: 502 }
-        );
+
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error(`Error al parsear respuesta de Apps Script para foto ${i + 1}. Crudo:`, text);
+          return NextResponse.json(
+            { error: `Respuesta inválida de Google Apps Script en la foto ${i + 1}. Asegúrate de implementarlo como Web App.` },
+            { status: 502 }
+          );
+        }
+
+        if (!response.ok || data.success === false) {
+          return NextResponse.json(
+            { error: data.error || `Error reportado por el script de Google Apps Script en la foto ${i + 1}.` },
+            { status: 502 }
+          );
+        }
+        results.push(data);
       }
+
+      return NextResponse.json({
+        success: true,
+        message: `${itemsToUpload.length} foto(s) guardada(s) exitosamente en Google Sheets vía Apps Script.`,
+        idGenerado: results[results.length - 1].idGenerado,
+        fechaCaptura: results[results.length - 1].fechaCaptura,
+        results,
+      });
     }
 
     // OPCIÓN B: Conexión directa mediante Google Sheets API y Cuenta de Servicio
@@ -97,45 +116,53 @@ export async function POST(request: Request) {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
+    const results = [];
 
-    // Generar un ID único basado en fecha y hora + número aleatorio
-    const now = new Date(timestamp || Date.now());
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    
-    const idGenerado = `ID-${year}${month}${day}-${hours}${minutes}${seconds}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const fechaCaptura = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    for (let i = 0; i < itemsToUpload.length; i++) {
+      const item = itemsToUpload[i];
 
-    // Nuevo orden de columnas: [ID_Generado, Numero_HC, Nombre_Paciente, Fecha_Captura, Tamano_KB, Imagen_Base64]
-    const range = 'A:F'; 
+      // Generar un ID único basado en fecha y hora + número aleatorio
+      const now = new Date(timestamp || Date.now());
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      
+      const idGenerado = `ID-${year}${month}${day}-${hours}${minutes}${seconds}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const fechaCaptura = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range,
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [
-          [
-            idGenerado,
-            numeroHC.trim(),
-            nombrePaciente.trim(),
-            fechaCaptura,
-            sizeKB ? `${parseFloat(sizeKB).toFixed(1)} KB` : 'N/A',
-            imageBase64
-          ]
-        ],
-      },
-    });
+      // Nuevo orden de columnas: [ID_Generado, Numero_HC, Nombre_Paciente, Fecha_Captura, Tamano_KB, Imagen_Base64]
+      const range = 'A:F'; 
+
+      await sheets.spreadsheets.values.append({
+        spreadsheetId,
+        range,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [
+            [
+              idGenerado,
+              numeroHC.trim(),
+              nombrePaciente.trim(),
+              fechaCaptura,
+              item.sizeKB ? `${parseFloat(item.sizeKB.toString()).toFixed(1)} KB` : 'N/A',
+              item.imageBase64
+            ]
+          ],
+        },
+      });
+
+      results.push({ idGenerado, fechaCaptura });
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Datos guardados exitosamente en Google Sheets.',
-      idGenerado,
-      fechaCaptura,
+      message: `${itemsToUpload.length} foto(s) guardada(s) exitosamente en Google Sheets.`,
+      idGenerado: results[results.length - 1].idGenerado,
+      fechaCaptura: results[results.length - 1].fechaCaptura,
+      results,
     });
 
   } catch (error: any) {
