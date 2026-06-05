@@ -143,9 +143,6 @@ export default function Home() {
             <h1 className="text-[22px] font-black tracking-tight text-[#0F1117] leading-none">
               ExConverter
             </h1>
-            <p className="text-[11px] font-semibold text-[#6B7280] tracking-widest uppercase mt-0.5">
-              Escáner Clínico Digital
-            </p>
           </div>
           {/* Live indicator */}
           <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white shadow-sm">
