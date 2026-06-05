@@ -21,6 +21,7 @@ interface LogEntry {
 
 export default function Home() {
   const [numeroHC, setNumeroHC] = useState('');
+  const [nombrePaciente, setNombrePaciente] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [rawBase64, setRawBase64] = useState<string | null>(null);
@@ -69,7 +70,6 @@ export default function Home() {
       setIsCameraActive(true);
 
       // Asignar el stream al elemento de video y reproducir
-      // El video siempre está en el DOM, por lo que videoRef.current no es nulo.
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         try {
@@ -176,10 +176,16 @@ export default function Home() {
 
   // Subir datos a la API de Next.js
   const uploadToGoogleSheets = async () => {
-    // Validar Historia Clínica
+    // Validar Historia Clínica y Nombre
     if (!numeroHC.trim()) {
       addLog('Error de validación: Debe ingresar el Número de Historia Clínica.', 'error');
       alert('Por favor, ingresa el Número de Historia Clínica o DNI antes de subir.');
+      return;
+    }
+
+    if (!nombrePaciente.trim()) {
+      addLog('Error de validación: Debe ingresar el Nombre Completo del Paciente.', 'error');
+      alert('Por favor, ingresa el Nombre Completo del Paciente antes de subir.');
       return;
     }
 
@@ -199,6 +205,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           numeroHC: numeroHC.trim(),
+          nombrePaciente: nombrePaciente.trim(),
           imageBase64: rawBase64,
           sizeKB: imageSizeKB,
           timestamp: new Date().toISOString()
@@ -210,13 +217,14 @@ export default function Home() {
       if (response.ok) {
         addLog('Subiendo exitosamente. ¡Fila insertada!', 'success');
         addLog(`ID Generado: ${data.idGenerado}`, 'success');
-        alert(`¡Subida exitosa!\nID: ${data.idGenerado}\nDocumento vinculado a la HC: ${numeroHC}`);
+        alert(`¡Subida exitosa!\nID: ${data.idGenerado}\nDocumento vinculado a: ${nombrePaciente} (${numeroHC})`);
         
         // Limpiar formulario y captura tras subir con éxito
         setCapturedImage(null);
         setRawBase64(null);
         setImageSizeKB(null);
         setNumeroHC('');
+        setNombrePaciente('');
       } else {
         addLog(`Error de subida: ${data.error || 'Respuesta de servidor inválida'}`, 'error');
         if (data.details) console.error(data.details);
@@ -257,24 +265,42 @@ export default function Home() {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-200">Identificación del Documento</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Asigna el número de Historia Clínica (HC) o DNI antes de registrar la captura.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Ingresa los datos obligatorios del paciente antes de capturar el documento físico.</p>
             </div>
           </div>
 
-          <div className="mt-4">
-            <label htmlFor="numeroHC" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Número de Historia Clínica / DNI *
-            </label>
-            <input
-              id="numeroHC"
-              type="text"
-              required
-              disabled={isUploading}
-              placeholder="Ej. HC-948203 o DNI-48291039"
-              value={numeroHC}
-              onChange={(e) => setNumeroHC(e.target.value)}
-              className="w-full bg-[#0A0B10] border border-[#1E293B] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-            />
+          <div className="mt-4 flex flex-col gap-3.5">
+            <div>
+              <label htmlFor="numeroHC" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                Número de Historia Clínica / DNI *
+              </label>
+              <input
+                id="numeroHC"
+                type="text"
+                required
+                disabled={isUploading}
+                placeholder="Ej. HC-948203 o DNI-48291039"
+                value={numeroHC}
+                onChange={(e) => setNumeroHC(e.target.value)}
+                className="w-full bg-[#0A0B10] border border-[#1E293B] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="nombrePaciente" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                Nombre Completo del Paciente *
+              </label>
+              <input
+                id="nombrePaciente"
+                type="text"
+                required
+                disabled={isUploading}
+                placeholder="Ej. Juan Pérez García"
+                value={nombrePaciente}
+                onChange={(e) => setNombrePaciente(e.target.value)}
+                className="w-full bg-[#0A0B10] border border-[#1E293B] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+              />
+            </div>
           </div>
         </section>
 
@@ -386,7 +412,7 @@ export default function Home() {
           <button
             type="button"
             onClick={uploadToGoogleSheets}
-            disabled={isUploading || isCompressing || !numeroHC.trim()}
+            disabled={isUploading || isCompressing || !numeroHC.trim() || !nombrePaciente.trim()}
             className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:from-blue-700 active:to-indigo-700 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 shadow-xl shadow-indigo-950/50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isUploading ? (

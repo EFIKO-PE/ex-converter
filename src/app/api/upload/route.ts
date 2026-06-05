@@ -4,12 +4,18 @@ import { google } from 'googleapis';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { numeroHC, imageBase64, sizeKB, timestamp } = body;
+    const { numeroHC, nombrePaciente, imageBase64, sizeKB, timestamp } = body;
 
     // Validaciones básicas
     if (!numeroHC || typeof numeroHC !== 'string') {
       return NextResponse.json(
         { error: 'El Número de Historia Clínica es requerido y debe ser un texto.' },
+        { status: 400 }
+      );
+    }
+    if (!nombrePaciente || typeof nombrePaciente !== 'string') {
+      return NextResponse.json(
+        { error: 'El Nombre Completo del Paciente es requerido y debe ser un texto.' },
         { status: 400 }
       );
     }
@@ -21,7 +27,6 @@ export async function POST(request: Request) {
     }
 
     // OPCIÓN A: Si está configurada la variable GOOGLE_SCRIPT_URL (Apps Script Web App)
-    // Esto simplifica el proceso al no requerir Cuenta de Servicio
     const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
     if (scriptUrl) {
       console.log('Utilizando Google Apps Script para guardar los datos...');
@@ -32,6 +37,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           numeroHC,
+          nombrePaciente,
           imageBase64,
           sizeKB,
           timestamp,
@@ -104,7 +110,8 @@ export async function POST(request: Request) {
     const idGenerado = `ID-${year}${month}${day}-${hours}${minutes}${seconds}-${Math.floor(1000 + Math.random() * 9000)}`;
     const fechaCaptura = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
-    const range = 'A:E'; 
+    // Nuevo orden de columnas: [ID_Generado, Numero_HC, Nombre_Paciente, Fecha_Captura, Tamano_KB, Imagen_Base64]
+    const range = 'A:F'; 
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
@@ -115,6 +122,7 @@ export async function POST(request: Request) {
           [
             idGenerado,
             numeroHC.trim(),
+            nombrePaciente.trim(),
             fechaCaptura,
             sizeKB ? `${parseFloat(sizeKB).toFixed(1)} KB` : 'N/A',
             imageBase64
