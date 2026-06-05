@@ -22,7 +22,6 @@ interface LogEntry {
   type: 'info' | 'success' | 'warning' | 'error';
 }
 
-const STEP_LABELS = ['Datos', 'Captura', 'Subir'];
 
 export default function Home() {
   const [numeroHC, setNumeroHC] = useState('');
@@ -158,27 +157,30 @@ export default function Home() {
         </div>
 
         {/* ── Step Indicator ─────────────────────────────── */}
-        <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white shadow-[0_4px_24px_rgba(0,0,0,0.04)] px-5 py-3.5">
-          <div className="flex items-center gap-0">
-            {STEP_LABELS.map((label, i) => (
-              <div key={i} className="flex items-center flex-1 last:flex-none">
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-300
-                    ${i < currentStep ? 'bg-[#6366F1] text-white shadow-[0_0_12px_rgba(99,102,241,0.35)]' : ''}
-                    ${i === currentStep ? 'bg-[#0F1117] text-white shadow-[0_0_12px_rgba(15,17,23,0.2)]' : ''}
-                    ${i > currentStep ? 'bg-slate-100 text-slate-400 border border-slate-200' : ''}
-                  `}>
-                    {i < currentStep ? '✓' : i + 1}
-                  </div>
-                  <span className={`text-[11px] font-bold transition-colors duration-300
-                    ${i === currentStep ? 'text-[#0F1117]' : i < currentStep ? 'text-[#6366F1]' : 'text-slate-400'}
-                  `}>{label}</span>
-                </div>
-                {i < STEP_LABELS.length - 1 && (
-                  <div className={`flex-1 h-px mx-3 transition-colors duration-500 ${i < currentStep ? 'bg-[#6366F1]/40' : 'bg-slate-200'}`} />
-                )}
-              </div>
+        <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white shadow-[0_4px_24px_rgba(0,0,0,0.04)] px-5 py-3.5 flex flex-col gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-500 ${
+                  i < currentStep
+                    ? 'bg-[#6366F1] shadow-[0_1px_4px_rgba(99,102,241,0.2)]'
+                    : i === currentStep
+                    ? 'bg-[#0F1117] shadow-[0_1px_4px_rgba(15,17,23,0.15)] animate-pulse'
+                    : 'bg-slate-200/80'
+                }`}
+              />
             ))}
+          </div>
+          <div className="flex items-center justify-between pt-0.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#6366F1]">
+              Paso {currentStep + 1} de 3
+            </span>
+            <span className="text-[11px] font-bold text-[#0F1117] transition-all duration-300">
+              {currentStep === 0 && 'Identificación del Paciente'}
+              {currentStep === 1 && 'Captura del Documento'}
+              {currentStep === 2 && 'Subida a Google Sheets'}
+            </span>
           </div>
         </div>
 
