@@ -41,53 +41,46 @@ export async function POST(request: Request) {
     // OPCIÓN A: Si está configurada la variable GOOGLE_SCRIPT_URL (Apps Script Web App)
     const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
     if (scriptUrl) {
-      console.log(`Utilizando Google Apps Script para guardar ${itemsToUpload.length} fotos...`);
-      const results = [];
+      console.log(`Utilizando Google Apps Script para guardar ${itemsToUpload.length} fotos en un solo lote...`);
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          numeroHC,
+          nombrePaciente,
+          photos: itemsToUpload,
+          timestamp,
+        }),
+      });
 
-      for (let i = 0; i < itemsToUpload.length; i++) {
-        const item = itemsToUpload[i];
-        const response = await fetch(scriptUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            numeroHC,
-            nombrePaciente,
-            imageBase64: item.imageBase64,
-            sizeKB: item.sizeKB,
-            timestamp,
-          }),
-        });
-
-        const text = await response.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error(`Error al parsear respuesta de Apps Script para foto ${i + 1}. Crudo:`, text);
-          return NextResponse.json(
-            { error: `Respuesta inválida de Google Apps Script en la foto ${i + 1}. Asegúrate de implementarlo como Web App.` },
-            { status: 502 }
-          );
-        }
-
-        if (!response.ok || data.success === false) {
-          return NextResponse.json(
-            { error: data.error || `Error reportado por el script de Google Apps Script en la foto ${i + 1}.` },
-            { status: 502 }
-          );
-        }
-        results.push(data);
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Error al parsear respuesta de Apps Script. Crudo:', text);
+        return NextResponse.json(
+          { error: 'Respuesta inválida de Google Apps Script. Asegúrate de implementarlo como Web App.' },
+          { status: 502 }
+        );
       }
 
-      return NextResponse.json({
-        success: true,
-        message: `${itemsToUpload.length} foto(s) guardada(s) exitosamente en Google Sheets vía Apps Script.`,
-        idGenerado: results[results.length - 1].idGenerado,
-        fechaCaptura: results[results.length - 1].fechaCaptura,
-        results,
-      });
+      if (response.ok && data.success !== false) {
+        return NextResponse.json({
+          success: true,
+          message: `${itemsToUpload.length} foto(s) guardada(s) exitosamente en Google Sheets vía Apps Script.`,
+          idGenerado: data.idGenerado,
+          fechaCaptura: data.fechaCaptura,
+          folderUrl: data.folderUrl,
+        });
+      } else {
+        return NextResponse.json(
+          { error: data.error || 'Error reportado por el script de Google Apps Script.' },
+          { status: 502 }
+        );
+      }
     }
 
     // OPCIÓN B: Conexión directa mediante Google Sheets API y Cuenta de Servicio
