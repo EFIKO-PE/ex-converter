@@ -422,12 +422,12 @@ export default function Home() {
             {isUploading ? (
               <>
                 <RefreshCw className="w-4.5 h-4.5 animate-spin" />
-                Subiendo {photos.length} {photos.length === 1 ? 'foto' : 'fotos'} a Google Sheets...
+                PUSHING...
               </>
             ) : (
               <>
                 <UploadCloud className="w-4.5 h-4.5" />
-                Guardar {photos.length} {photos.length === 1 ? 'foto' : 'fotos'} en Google Sheets
+                PUSH DB
                 <ChevronRight className="w-4 h-4 opacity-50" />
               </>
             )}
