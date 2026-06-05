@@ -53,12 +53,12 @@ export default function Home() {
       // Detener cualquier stream anterior
       stopCamera();
 
-      // Configuración de cámara móvil (prioriza cámara trasera 'environment')
+      // Configuración de cámara móvil (720p para máxima compatibilidad)
       const constraints = {
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         },
         audio: false
       };
@@ -66,11 +66,19 @@ export default function Home() {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       
+      setIsCameraActive(true);
+
+      // Asignar el stream al elemento de video y reproducir
+      // El video siempre está en el DOM, por lo que videoRef.current no es nulo.
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.error('Error al iniciar reproducción de video:', playError);
+        }
       }
       
-      setIsCameraActive(true);
       addLog('Cámara activada exitosamente (Cámara trasera preferida).', 'success');
     } catch (error: any) {
       console.error('Error al acceder a la cámara:', error);
@@ -286,25 +294,27 @@ export default function Home() {
 
           {/* Area de Visualización de Cámara o Foto */}
           <div className="aspect-[4/3] bg-[#06070B] relative flex items-center justify-center overflow-hidden">
-            {capturedImage ? (
-              // Vista previa de la foto tomada
+            {/* Vista previa de la foto tomada */}
+            {capturedImage && (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img 
                 src={capturedImage} 
                 alt="Documento capturado" 
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain z-10"
               />
-            ) : isCameraActive ? (
-              // Video en vivo de la cámara
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              // Estado inactivo / Sin iniciar cámara
+            )}
+
+            {/* Video en vivo de la cámara - Siempre montado para evitar condiciones de carrera en React */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${(!isCameraActive || capturedImage) ? 'hidden' : 'block'}`}
+            />
+
+            {/* Estado inactivo / Sin iniciar cámara */}
+            {!isCameraActive && !capturedImage && (
               <div className="flex flex-col items-center gap-3 text-center p-6 text-slate-500">
                 <div className="w-16 h-16 rounded-full bg-slate-950 border border-slate-900 flex items-center justify-center text-slate-600">
                   <CameraOff className="w-8 h-8" />
@@ -317,7 +327,7 @@ export default function Home() {
             )}
 
             {isCompressing && (
-              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20">
                 <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
                 <span className="text-xs text-slate-300 font-medium">Procesando y comprimiendo imagen...</span>
               </div>
