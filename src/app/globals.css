@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #090A0F;
-  --foreground: #F8FAFC;
+  --background: #F5F5F7;
+  --foreground: #1D1D1F;
 }
 
 @theme inline {
@@ -15,24 +15,25 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom Scrollbar for State Console */
+/* Custom Scrollbar for State Console (iOS/macOS style) */
 .scrollbar-thin::-webkit-scrollbar {
   width: 5px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: #05060A;
+  background: transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #1E293B;
+  background: #C7C7CC;
   border-radius: 9999px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #8E8E93;
 }
