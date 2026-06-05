@@ -10,7 +10,8 @@ import {
   RefreshCw, 
   FileText, 
   Terminal, 
-  Image as ImageIcon 
+  Image as ImageIcon,
+  Activity
 } from 'lucide-react';
 
 interface LogEntry {
@@ -41,7 +42,7 @@ export default function Home() {
 
   // Inicializar consola
   useEffect(() => {
-    addLog('Listo para capturar.', 'info');
+    addLog('Listo para digitalización.', 'info');
     return () => {
       stopCamera();
     };
@@ -50,7 +51,7 @@ export default function Home() {
   // Activar cámara
   const startCamera = async () => {
     try {
-      addLog('Activando visor...', 'info');
+      addLog('Iniciando cámara...', 'info');
       stopCamera();
 
       const constraints = {
@@ -80,7 +81,7 @@ export default function Home() {
       addLog('Visor en vivo activado.', 'success');
     } catch (error: any) {
       console.error('Error al acceder a la cámara:', error);
-      addLog(`Cámara no permitida o no disponible.`, 'error');
+      addLog(`Cámara no disponible o permiso denegado.`, 'error');
     }
   };
 
@@ -99,7 +100,7 @@ export default function Home() {
   // Capturar foto y procesar (Redimensionar + Comprimir)
   const capturePhoto = () => {
     if (!videoRef.current || !isCameraActive) {
-      addLog('Error: Cámara apagada.', 'error');
+      addLog('Error: Cámara inactiva.', 'error');
       return;
     }
 
@@ -224,33 +225,38 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-3 sm:p-6 select-none">
+    <div className="min-h-screen flex flex-col justify-center items-center p-3 sm:p-6 select-none bg-[#F3F4F6]">
       
-      {/* Teléfono / Contenedor Estilo Neo-minimalista */}
-      <div className="w-full max-w-[420px] bg-[#F8F9FB] rounded-[36px] shadow-[0_24px_50px_rgba(0,0,0,0.06)] border border-[#E9EFF2] overflow-hidden flex flex-col">
+      {/* Contenedor Principal con Sombras Difusas y Bordes Redondeados */}
+      <div className="w-full max-w-[420px] bg-white rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-[#E5E7EB] overflow-hidden flex flex-col">
         
-        {/* Header */}
-        <header className="px-6 pt-7 pb-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-[#1A1A1E] flex items-center gap-1.5">
-              ExConverter <span className="text-xl">📸</span>
-            </h1>
-            <p className="text-xs text-[#909AA8] font-semibold mt-0.5">Captura y Digitalización de Historias</p>
+        {/* Header con Íconos de Línea Limpios (Estilo Apple/Soft UI, sin Emojis) */}
+        <header className="px-6 pt-7 pb-4 flex items-center justify-between border-b border-[#F3F4F6]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#0071E3]/8 flex items-center justify-center text-[#0071E3]">
+              <Camera className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-[#1F2937]">
+                ExConverter
+              </h1>
+              <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-wider">Escaner Clínico</p>
+            </div>
           </div>
-          <div className="w-9 h-9 rounded-full bg-[#EBF2F7] flex items-center justify-center border border-[#D9E4EC]">
-            <span className="w-2.5 h-2.5 bg-[#34C759] rounded-full animate-pulse" />
-          </div>
+          <span className="text-[10px] px-3 py-1 rounded-full bg-[#F3F4F6] text-[#6B7280] font-bold tracking-wider uppercase">
+            v1.1
+          </span>
         </header>
 
         {/* Formulario y Cámara */}
-        <div className="px-6 flex flex-col gap-5 pb-6">
+        <div className="px-6 flex flex-col gap-5 py-5">
           
-          {/* Tarjeta de Datos con inputs muy redondeados y fondo gris suave */}
-          <section className="bg-white rounded-[28px] p-5 border border-[#ECEFF3] shadow-[0_4px_16px_rgba(0,0,0,0.015)]">
+          {/* Tarjeta de Datos con Marcos Visibles y Bordes Claros */}
+          <section className="bg-white rounded-[24px] p-5 border border-[#E5E7EB] shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
             <div className="flex flex-col gap-4">
               <div>
-                <label htmlFor="numeroHC" className="block text-[10px] font-extrabold uppercase tracking-widest text-[#909AA8] mb-1.5">
-                  Historia Clínica o DNI *
+                <label htmlFor="numeroHC" className="block text-[10px] font-extrabold uppercase tracking-widest text-[#6B7280] mb-1.5">
+                  Número de Historia Clínica / DNI *
                 </label>
                 <input
                   id="numeroHC"
@@ -260,13 +266,13 @@ export default function Home() {
                   placeholder="Ej. HC-29482"
                   value={numeroHC}
                   onChange={(e) => setNumeroHC(e.target.value)}
-                  className="w-full bg-[#F0F2F6] border-2 border-transparent rounded-[18px] px-4.5 py-3.5 text-sm text-[#1A1A1E] placeholder-[#A0AAB5] focus:outline-none focus:bg-white focus:border-[#1A1A1E] transition-all hover:bg-[#EAECEF] focus:hover:bg-white"
+                  className="w-full bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#1F2937] placeholder-[#D1D5DB] focus:outline-none focus:bg-white focus:border-[#0071E3] focus:ring-0 transition-all"
                 />
               </div>
 
               <div>
-                <label htmlFor="nombrePaciente" className="block text-[10px] font-extrabold uppercase tracking-widest text-[#909AA8] mb-1.5">
-                  Paciente *
+                <label htmlFor="nombrePaciente" className="block text-[10px] font-extrabold uppercase tracking-widest text-[#6B7280] mb-1.5">
+                  Nombre Completo del Paciente *
                 </label>
                 <input
                   id="nombrePaciente"
@@ -276,17 +282,17 @@ export default function Home() {
                   placeholder="Ej. Juan Pérez García"
                   value={nombrePaciente}
                   onChange={(e) => setNombrePaciente(e.target.value)}
-                  className="w-full bg-[#F0F2F6] border-2 border-transparent rounded-[18px] px-4.5 py-3.5 text-sm text-[#1A1A1E] placeholder-[#A0AAB5] focus:outline-none focus:bg-white focus:border-[#1A1A1E] transition-all hover:bg-[#EAECEF] focus:hover:bg-white"
+                  className="w-full bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#1F2937] placeholder-[#D1D5DB] focus:outline-none focus:bg-white focus:border-[#0071E3] focus:ring-0 transition-all"
                 />
               </div>
             </div>
           </section>
 
-          {/* Visor de Cámara de Alto Contraste (Caja Negra con Bordes redondeados gruesos) */}
-          <section className="bg-[#1A1A1E] rounded-[32px] p-2 shadow-md flex flex-col relative overflow-hidden">
+          {/* Visor de Cámara Estilo Soft-Card (Bordes redondeados, Marco claro y Fondo gris suave) */}
+          <section className="bg-white rounded-[28px] p-3.5 border border-[#E5E7EB] shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col relative overflow-hidden">
             
             {/* Viewport de Cámara */}
-            <div className="aspect-[4/3] rounded-[24px] bg-[#2C2C30] relative flex items-center justify-center overflow-hidden">
+            <div className="aspect-[4/3] rounded-[20px] bg-[#F3F4F6] border border-[#E5E7EB] relative flex items-center justify-center overflow-hidden">
               
               {/* Foto tomada */}
               {capturedImage && (
@@ -294,7 +300,7 @@ export default function Home() {
                 <img 
                   src={capturedImage} 
                   alt="Documento capturado" 
-                  className="w-full h-full object-contain bg-[#121214] z-10 rounded-[24px]"
+                  className="w-full h-full object-contain bg-[#1F2937] z-10 rounded-[20px]"
                 />
               )}
 
@@ -304,46 +310,46 @@ export default function Home() {
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover bg-black rounded-[24px] ${(!isCameraActive || capturedImage) ? 'hidden' : 'block'}`}
+                className={`w-full h-full object-cover bg-black rounded-[20px] ${(!isCameraActive || capturedImage) ? 'hidden' : 'block'}`}
               />
 
               {/* Estado inactivo */}
               {!isCameraActive && !capturedImage && (
-                <div className="flex flex-col items-center gap-3 text-center p-6 text-[#909AA8]">
-                  <div className="w-13 h-13 rounded-full bg-[#2C2C30] flex items-center justify-center text-white/50 shadow-sm border border-white/5">
-                    <CameraOff className="w-5 h-5" />
+                <div className="flex flex-col items-center gap-3.5 text-center p-6 text-[#9CA3AF]">
+                  <div className="w-12 h-12 rounded-full bg-white border border-[#E5E7EB] flex items-center justify-center text-[#9CA3AF] shadow-sm">
+                    <Camera className="w-5 h-5" />
                   </div>
                   <div className="text-xs">
-                    <p className="font-bold text-white/80">Cámara Inactiva</p>
-                    <p className="mt-0.5 text-xs text-white/40 max-w-[200px]">Presiona Activar Cámara para escanear el documento.</p>
+                    <p className="font-bold text-[#1F2937]">Cámara Apagada</p>
+                    <p className="mt-0.5 text-xs text-[#9CA3AF] max-w-[200px]">Enciende la cámara para encuadrar y escanear el documento.</p>
                   </div>
                 </div>
               )}
 
               {/* Cargando/Comprimiendo */}
               {isCompressing && (
-                <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20 rounded-[24px]">
-                  <RefreshCw className="w-7 h-7 text-[#1A1A1E] animate-spin" />
-                  <span className="text-xs text-[#1A1A1E] font-bold">Procesando imagen...</span>
+                <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-3.5 z-20 rounded-[20px]">
+                  <RefreshCw className="w-6 h-6 text-[#0071E3] animate-spin" />
+                  <span className="text-xs text-[#1F2937] font-bold">Procesando y optimizando...</span>
                 </div>
               )}
 
               {/* Badge del peso de la captura */}
               {capturedImage && (
-                <span className="absolute top-3 right-3 text-[10px] px-2.5 py-1 rounded-full bg-[#1A1A1E]/80 text-[#A7F3D0] font-bold z-20 backdrop-blur-sm">
+                <span className="absolute top-3 right-3 text-[10px] px-2.5 py-1 rounded-full bg-white/90 text-[#0071E3] border border-[#E5E7EB] font-bold z-20 backdrop-blur-sm shadow-sm">
                   {imageSizeKB?.toFixed(1)} KB
                 </span>
               )}
             </div>
 
             {/* Controles del visor */}
-            <div className="p-2 pt-3 flex flex-col gap-2 bg-[#1A1A1E]">
+            <div className="pt-3.5 flex flex-col gap-2 bg-white">
               {!capturedImage ? (
                 !isCameraActive ? (
                   <button
                     type="button"
                     onClick={startCamera}
-                    className="w-full py-3.5 bg-white text-[#1A1A1E] hover:bg-slate-100 font-extrabold rounded-[20px] text-xs flex items-center justify-center gap-2 hover-scale cursor-pointer"
+                    className="w-full py-3.5 bg-[#0071E3] text-white hover:bg-[#0077ED] active:bg-[#0062C2] font-extrabold rounded-full text-xs flex items-center justify-center gap-2 hover-scale cursor-pointer shadow-sm shadow-[#0071E3]/15"
                   >
                     <Camera className="w-4 h-4" />
                     Activar Cámara
@@ -354,7 +360,7 @@ export default function Home() {
                       type="button"
                       onClick={capturePhoto}
                       disabled={isCompressing}
-                      className="flex-1 py-3.5 bg-[#A7F3D0] text-[#047857] hover:bg-[#6EE7B7] font-extrabold rounded-[20px] text-xs flex items-center justify-center gap-2 hover-scale cursor-pointer disabled:opacity-50"
+                      className="flex-1 py-3.5 bg-[#34C759] text-white hover:bg-[#30B34F] active:bg-[#289E43] font-extrabold rounded-full text-xs flex items-center justify-center gap-2 hover-scale cursor-pointer disabled:opacity-50"
                     >
                       <ImageIcon className="w-4 h-4" />
                       Tomar Foto
@@ -362,7 +368,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={stopCamera}
-                      className="px-4.5 bg-[#2C2C30] hover:bg-[#3C3C40] text-white/70 hover:text-white rounded-[20px] text-xs flex items-center justify-center cursor-pointer"
+                      className="px-4.5 bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#4B5563] rounded-full text-xs flex items-center justify-center cursor-pointer border border-[#E5E7EB]"
                       title="Apagar Cámara"
                     >
                       <CameraOff className="w-4 h-4" />
@@ -374,7 +380,7 @@ export default function Home() {
                   type="button"
                   onClick={retakePhoto}
                   disabled={isUploading}
-                  className="w-full py-3 bg-[#2C2C30] hover:bg-[#3C3C40] text-white font-bold rounded-[20px] text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                  className="w-full py-3 bg-white hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#4B5563] border-2 border-[#E5E7EB] font-bold rounded-full text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Volver a Capturar
@@ -383,13 +389,13 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Botón Guardar en Sheets (Estilo Botón Redondo Negro Grande) */}
+          {/* Botón Guardar en Sheets (Estilo Botón Pill Negro Grande) */}
           {capturedImage && (
             <button
               type="button"
               onClick={uploadToGoogleSheets}
               disabled={isUploading || isCompressing || !numeroHC.trim() || !nombrePaciente.trim()}
-              className="w-full py-4.5 bg-[#1A1A1E] hover:bg-[#2D2D35] active:bg-[#000000] text-white font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-md hover-scale cursor-pointer disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed"
+              className="w-full py-4.5 bg-[#1F2937] hover:bg-[#374151] active:bg-[#111827] text-white font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-md hover-scale cursor-pointer disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed"
             >
               {isUploading ? (
                 <>
@@ -398,35 +404,35 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <UploadCloud className="w-4 h-4" />
+                  <UploadCloud className="w-4.5 h-4.5" />
                   Guardar en Google Sheets
                 </>
               )}
             </button>
           )}
 
-          {/* Registro de Estados tipo burbujas de notificaciones */}
-          <section className="bg-[#EBF2F7] rounded-[28px] p-4.5 border border-[#D9E4EC]">
+          {/* Bitácora de Estados en una tarjeta blanca con bordes claros y entradas ordenadas */}
+          <section className="bg-white rounded-[24px] p-5 border border-[#E5E7EB] shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
             <div className="flex items-center gap-2 mb-3">
-              <Terminal className="w-4 h-4 text-[#909AA8]" />
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#909AA8]">Bitácora de Estados</span>
+              <Activity className="w-4.5 h-4.5 text-[#9CA3AF]" />
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#9CA3AF]">Registro de Estado</span>
             </div>
             
             <div className="h-28 overflow-y-auto font-mono text-[10px] flex flex-col gap-2 scrollbar-thin">
               {logs.length === 0 ? (
-                <div className="text-[#909AA8] text-center py-4">Sin actividades recientes</div>
+                <div className="text-[#9CA3AF] text-center py-4">Sin actividades recientes</div>
               ) : (
                 logs.map((log, idx) => (
-                  <div key={idx} className="bg-white rounded-xl p-2 flex items-start gap-2 shadow-[0_2px_6px_rgba(0,0,0,0.01)] border border-[#ECEFF3]">
-                    <span className="text-[#909AA8] text-[9px] mt-0.5">[{log.time}]</span>
+                  <div key={idx} className="bg-[#F9FAFB] rounded-xl p-2.5 flex items-start gap-2 border border-[#E5E7EB]">
+                    <span className="text-[#9CA3AF] text-[9px] mt-0.5 shrink-0">[{log.time}]</span>
                     <span className={`flex-1 leading-snug
-                      ${log.type === 'success' ? 'text-[#047857] font-bold' : ''}
+                      ${log.type === 'success' ? 'text-[#34C759] font-bold' : ''}
                       ${log.type === 'warning' ? 'text-[#D97706]' : ''}
-                      ${log.type === 'error' ? 'text-[#E11D48] font-bold animate-pulse' : ''}
-                      ${log.type === 'info' ? 'text-[#0369A1] font-semibold' : ''}
+                      ${log.type === 'error' ? 'text-[#EF4444] font-bold animate-pulse' : ''}
+                      ${log.type === 'info' ? 'text-[#0071E3] font-semibold' : ''}
                     `}>
                       {log.type === 'success' && '✓ '}
-                      {log.type === 'error' && '✗ '}
+                      {log.type === 'error' && '✕ '}
                       {log.type === 'warning' && '⚠ '}
                       {log.text}
                     </span>
@@ -439,9 +445,9 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <footer className="mt-auto py-4 bg-white border-t border-[#ECEFF3] text-center">
-          <p className="text-[10px] text-[#909AA8] font-bold uppercase tracking-wider">
-            ExConverter • Friendly Tech
+        <footer className="mt-auto py-4 bg-[#F9FAFB] border-t border-[#F3F4F6] text-center">
+          <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-wider">
+            ExConverter • Friendly Escaner
           </p>
         </footer>
 
