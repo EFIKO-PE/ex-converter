@@ -1,8 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #DCE7EB;
-  --foreground: #1A1A1E;
+  --background: #ECEEF2;
+  --foreground: #0F1117;
 }
 
 @theme inline {
@@ -12,18 +13,28 @@
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background: var(--background);
-  background-image: radial-gradient(circle at 10% 20%, rgba(216, 241, 248, 0.4) 0%, rgba(233, 244, 244, 0.4) 90.1%);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
+* {
+  box-sizing: border-box;
 }
 
-/* Custom Scrollbar for State Console */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Smooth transitions on all interactive elements */
+button, input, a {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Premium Scrollbar */
 .scrollbar-thin::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
@@ -31,21 +42,15 @@ body {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #C3C9D0;
-  border-radius: 9999px;
+  background: #CBD5E1;
+  border-radius: 99px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #A0AAB5;
+  background: #94A3B8;
 }
 
-/* Clean micro-animations */
-.hover-scale {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.hover-scale:hover {
-  transform: translateY(-1.5px);
-}
-.hover-scale:active {
-  transform: translateY(0.5px) scale(0.98);
+/* Tap highlight remove for mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
 }

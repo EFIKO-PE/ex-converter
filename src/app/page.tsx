@@ -1,17 +1,19 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { 
-  Camera, 
-  CameraOff, 
-  UploadCloud, 
-  CheckCircle, 
-  AlertTriangle, 
-  RefreshCw, 
-  FileText, 
-  Terminal, 
+import {
+  Camera,
+  CameraOff,
+  UploadCloud,
+  RefreshCw,
   Image as ImageIcon,
-  Activity
+  Activity,
+  User,
+  FileDigit,
+  CheckCircle2,
+  XCircle,
+  Info,
+  ChevronRight
 } from 'lucide-react';
 
 interface LogEntry {
@@ -19,6 +21,8 @@ interface LogEntry {
   text: string;
   type: 'info' | 'success' | 'warning' | 'error';
 }
+
+const STEP_LABELS = ['Datos', 'Captura', 'Subir'];
 
 export default function Home() {
   const [numeroHC, setNumeroHC] = useState('');
@@ -30,426 +34,368 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Helper para agregar logs a la consola visual
+  const currentStep = !capturedImage ? (numeroHC && nombrePaciente ? 1 : 0) : 2;
+
   const addLog = (text: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLogs((prev) => [{ time, text, type }, ...prev]);
   };
 
-  // Inicializar consola
   useEffect(() => {
-    addLog('Listo para digitalización.', 'info');
-    return () => {
-      stopCamera();
-    };
+    addLog('Sistema listo para digitalizar.', 'info');
+    return () => { stopCamera(); };
   }, []);
 
-  // Activar cámara
   const startCamera = async () => {
     try {
-      addLog('Iniciando cámara...', 'info');
+      addLog('Solicitando acceso a la cámara...', 'info');
       stopCamera();
-
-      const constraints = {
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      });
       streamRef.current = stream;
-      
       setIsCameraActive(true);
-
-      // Asignar stream y reproducir
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        try {
-          await videoRef.current.play();
-        } catch (playError) {
-          console.error('Error al reproducir video:', playError);
-        }
+        await videoRef.current.play().catch(console.error);
       }
-      
-      addLog('Visor en vivo activado.', 'success');
-    } catch (error: any) {
-      console.error('Error al acceder a la cámara:', error);
-      addLog(`Cámara no disponible o permiso denegado.`, 'error');
+      addLog('Visor activo. Encuadra el documento.', 'success');
+    } catch {
+      addLog('Permiso de cámara denegado o no disponible.', 'error');
     }
   };
 
-  // Desactivar cámara
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
     setIsCameraActive(false);
   };
 
-  // Capturar foto y procesar (Redimensionar + Comprimir)
   const capturePhoto = () => {
-    if (!videoRef.current || !isCameraActive) {
-      addLog('Error: Cámara inactiva.', 'error');
-      return;
-    }
-
+    if (!videoRef.current || !isCameraActive) { addLog('Error: cámara no activa.', 'error'); return; }
     setIsCompressing(true);
-    addLog('Capturando imagen...', 'info');
-
+    addLog('Capturando fotograma...', 'info');
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    
-    let width = video.videoWidth;
-    let height = video.videoHeight;
-    
-    // Redimensionamiento a 1200px max
-    const maxWidth = 1200;
-    if (width > maxWidth) {
-      height = Math.round((height * maxWidth) / width);
-      width = maxWidth;
-    }
-    
-    canvas.width = width;
-    canvas.height = height;
-    
+    let w = video.videoWidth, h = video.videoHeight;
+    if (w > 1200) { h = Math.round((h * 1200) / w); w = 1200; }
+    canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      addLog('Error al procesar en canvas.', 'error');
-      setIsCompressing(false);
-      return;
-    }
-    
-    ctx.drawImage(video, 0, 0, width, height);
-    
-    addLog('Comprimiendo y optimizando archivo...', 'info');
-    
-    // Comprimir en JPEG a 65% calidad
-    const quality = 0.65;
-    const dataUrl = canvas.toDataURL('image/jpeg', quality);
-    
-    // Calcular peso
-    const base64Content = dataUrl.split(',')[1];
-    const binaryString = window.atob(base64Content);
-    const sizeInBytes = binaryString.length;
-    const sizeInKB = sizeInBytes / 1024;
-    
+    if (!ctx) { addLog('Error de canvas.', 'error'); setIsCompressing(false); return; }
+    ctx.drawImage(video, 0, 0, w, h);
+    addLog('Comprimiendo a JPEG 65%...', 'info');
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+    const b64 = dataUrl.split(',')[1];
+    const kb = window.atob(b64).length / 1024;
     setCapturedImage(dataUrl);
-    setRawBase64(base64Content);
-    setImageSizeKB(sizeInKB);
+    setRawBase64(b64);
+    setImageSizeKB(kb);
     setIsCompressing(false);
-    
-    addLog(`Captura optimizada a ${sizeInKB.toFixed(1)} KB.`, 'success');
-
+    addLog(`Captura lista · ${kb.toFixed(1)} KB · ${w}px ancho.`, 'success');
     stopCamera();
   };
 
-  // Resetear captura
   const retakePhoto = () => {
-    setCapturedImage(null);
-    setRawBase64(null);
-    setImageSizeKB(null);
-    addLog('Visor reiniciado.', 'info');
+    setCapturedImage(null); setRawBase64(null); setImageSizeKB(null);
+    addLog('Nueva toma iniciada.', 'info');
     startCamera();
   };
 
-  // Subir datos
   const uploadToGoogleSheets = async () => {
-    if (!numeroHC.trim()) {
-      addLog('Falta ingresar la Historia Clínica / DNI.', 'error');
-      alert('Por favor, ingresa el Número de Historia Clínica o DNI.');
-      return;
-    }
-
-    if (!nombrePaciente.trim()) {
-      addLog('Falta ingresar el Nombre del Paciente.', 'error');
-      alert('Por favor, ingresa el Nombre Completo del Paciente.');
-      return;
-    }
-
-    if (!rawBase64 || !imageSizeKB) {
-      addLog('No hay captura disponible para subir.', 'error');
-      return;
-    }
-
+    if (!numeroHC.trim()) { addLog('Falta Número de Historia Clínica.', 'error'); return; }
+    if (!nombrePaciente.trim()) { addLog('Falta Nombre del Paciente.', 'error'); return; }
+    if (!rawBase64) { addLog('No hay imagen para subir.', 'error'); return; }
     setIsUploading(true);
-    addLog('Subiendo fila a Google Sheets...', 'info');
-
+    addLog('Enviando datos a Google Sheets...', 'info');
     try {
-      const response = await fetch('/api/upload', {
+      const res = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          numeroHC: numeroHC.trim(),
-          nombrePaciente: nombrePaciente.trim(),
-          imageBase64: rawBase64,
-          sizeKB: imageSizeKB,
-          timestamp: new Date().toISOString()
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numeroHC: numeroHC.trim(), nombrePaciente: nombrePaciente.trim(), imageBase64: rawBase64, sizeKB: imageSizeKB, timestamp: new Date().toISOString() })
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        addLog('¡Subida exitosa y vinculada!', 'success');
-        addLog(`ID Registro: ${data.idGenerado}`, 'success');
-        alert(`¡Subida exitosa!\nID: ${data.idGenerado}\nPaciente: ${nombrePaciente}`);
-        
-        // Limpiar
-        setCapturedImage(null);
-        setRawBase64(null);
-        setImageSizeKB(null);
-        setNumeroHC('');
-        setNombrePaciente('');
+      const data = await res.json();
+      if (res.ok) {
+        addLog(`¡Guardado exitosamente! ID: ${data.idGenerado}`, 'success');
+        alert(`✅ Subida exitosa\nID: ${data.idGenerado}\nPaciente: ${nombrePaciente}`);
+        setCapturedImage(null); setRawBase64(null); setImageSizeKB(null); setNumeroHC(''); setNombrePaciente('');
       } else {
-        addLog(`Error al subir: ${data.error || 'Respuesta fallida'}`, 'error');
+        addLog(`Error al guardar: ${data.error || 'Error desconocido'}`, 'error');
       }
-    } catch (error) {
-      console.error('Error de conexión:', error);
-      addLog('Error de conexión. Revisa tu acceso a internet.', 'error');
+    } catch {
+      addLog('Error de conexión. Revisa tu internet.', 'error');
     } finally {
       setIsUploading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-3 sm:p-6 select-none bg-[#F3F4F6]">
-      
-      {/* Contenedor Principal con Sombras Difusas y Bordes Redondeados */}
-      <div className="w-full max-w-[420px] bg-white rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-[#E5E7EB] overflow-hidden flex flex-col">
-        
-        {/* Header con Íconos de Línea Limpios (Estilo Apple/Soft UI, sin Emojis) */}
-        <header className="px-6 pt-7 pb-4 flex items-center justify-between border-b border-[#F3F4F6]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#0071E3]/8 flex items-center justify-center text-[#0071E3]">
-              <Camera className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-[#1F2937]">
-                ExConverter
-              </h1>
-              <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-wider">Escaner Clínico</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#E8EBF0] via-[#EEF0F5] to-[#E4E8EF] flex items-start justify-center p-4 pt-8 pb-12">
+      <div className="w-full max-w-[400px] flex flex-col gap-4">
+
+        {/* ── Brand Header ─────────────────────────────── */}
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h1 className="text-[22px] font-black tracking-tight text-[#0F1117] leading-none">
+              ExConverter
+            </h1>
+            <p className="text-[11px] font-semibold text-[#6B7280] tracking-widest uppercase mt-0.5">
+              Escáner Clínico Digital
+            </p>
           </div>
-          <span className="text-[10px] px-3 py-1 rounded-full bg-[#F3F4F6] text-[#6B7280] font-bold tracking-wider uppercase">
-            v1.1
-          </span>
-        </header>
-
-        {/* Formulario y Cámara */}
-        <div className="px-6 flex flex-col gap-5 py-5">
-          
-          {/* Tarjeta de Datos con Marcos Visibles y Bordes Claros */}
-          <section className="bg-white rounded-[24px] p-5 border border-[#E5E7EB] shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
-            <div className="flex flex-col gap-4">
-              <div>
-                <label htmlFor="numeroHC" className="block text-[10px] font-extrabold uppercase tracking-widest text-[#6B7280] mb-1.5">
-                  Número de Historia Clínica / DNI *
-                </label>
-                <input
-                  id="numeroHC"
-                  type="text"
-                  required
-                  disabled={isUploading}
-                  placeholder="Ej. HC-29482"
-                  value={numeroHC}
-                  onChange={(e) => setNumeroHC(e.target.value)}
-                  className="w-full bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#1F2937] placeholder-[#D1D5DB] focus:outline-none focus:bg-white focus:border-[#0071E3] focus:ring-0 transition-all"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="nombrePaciente" className="block text-[10px] font-extrabold uppercase tracking-widest text-[#6B7280] mb-1.5">
-                  Nombre Completo del Paciente *
-                </label>
-                <input
-                  id="nombrePaciente"
-                  type="text"
-                  required
-                  disabled={isUploading}
-                  placeholder="Ej. Juan Pérez García"
-                  value={nombrePaciente}
-                  onChange={(e) => setNombrePaciente(e.target.value)}
-                  className="w-full bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#1F2937] placeholder-[#D1D5DB] focus:outline-none focus:bg-white focus:border-[#0071E3] focus:ring-0 transition-all"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Visor de Cámara Estilo Soft-Card (Bordes redondeados, Marco claro y Fondo gris suave) */}
-          <section className="bg-white rounded-[28px] p-3.5 border border-[#E5E7EB] shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col relative overflow-hidden">
-            
-            {/* Viewport de Cámara */}
-            <div className="aspect-[4/3] rounded-[20px] bg-[#F3F4F6] border border-[#E5E7EB] relative flex items-center justify-center overflow-hidden">
-              
-              {/* Foto tomada */}
-              {capturedImage && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img 
-                  src={capturedImage} 
-                  alt="Documento capturado" 
-                  className="w-full h-full object-contain bg-[#1F2937] z-10 rounded-[20px]"
-                />
-              )}
-
-              {/* Transmisión de video */}
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-cover bg-black rounded-[20px] ${(!isCameraActive || capturedImage) ? 'hidden' : 'block'}`}
-              />
-
-              {/* Estado inactivo */}
-              {!isCameraActive && !capturedImage && (
-                <div className="flex flex-col items-center gap-3.5 text-center p-6 text-[#9CA3AF]">
-                  <div className="w-12 h-12 rounded-full bg-white border border-[#E5E7EB] flex items-center justify-center text-[#9CA3AF] shadow-sm">
-                    <Camera className="w-5 h-5" />
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-bold text-[#1F2937]">Cámara Apagada</p>
-                    <p className="mt-0.5 text-xs text-[#9CA3AF] max-w-[200px]">Enciende la cámara para encuadrar y escanear el documento.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Cargando/Comprimiendo */}
-              {isCompressing && (
-                <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-3.5 z-20 rounded-[20px]">
-                  <RefreshCw className="w-6 h-6 text-[#0071E3] animate-spin" />
-                  <span className="text-xs text-[#1F2937] font-bold">Procesando y optimizando...</span>
-                </div>
-              )}
-
-              {/* Badge del peso de la captura */}
-              {capturedImage && (
-                <span className="absolute top-3 right-3 text-[10px] px-2.5 py-1 rounded-full bg-white/90 text-[#0071E3] border border-[#E5E7EB] font-bold z-20 backdrop-blur-sm shadow-sm">
-                  {imageSizeKB?.toFixed(1)} KB
-                </span>
-              )}
-            </div>
-
-            {/* Controles del visor */}
-            <div className="pt-3.5 flex flex-col gap-2 bg-white">
-              {!capturedImage ? (
-                !isCameraActive ? (
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="w-full py-3.5 bg-[#0071E3] text-white hover:bg-[#0077ED] active:bg-[#0062C2] font-extrabold rounded-full text-xs flex items-center justify-center gap-2 hover-scale cursor-pointer shadow-sm shadow-[#0071E3]/15"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Activar Cámara
-                  </button>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={capturePhoto}
-                      disabled={isCompressing}
-                      className="flex-1 py-3.5 bg-[#34C759] text-white hover:bg-[#30B34F] active:bg-[#289E43] font-extrabold rounded-full text-xs flex items-center justify-center gap-2 hover-scale cursor-pointer disabled:opacity-50"
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      Tomar Foto
-                    </button>
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="px-4.5 bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#4B5563] rounded-full text-xs flex items-center justify-center cursor-pointer border border-[#E5E7EB]"
-                      title="Apagar Cámara"
-                    >
-                      <CameraOff className="w-4 h-4" />
-                    </button>
-                  </div>
-                )
-              ) : (
-                <button
-                  type="button"
-                  onClick={retakePhoto}
-                  disabled={isUploading}
-                  className="w-full py-3 bg-white hover:bg-[#F9FAFB] active:bg-[#F3F4F6] text-[#4B5563] border-2 border-[#E5E7EB] font-bold rounded-full text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Volver a Capturar
-                </button>
-              )}
-            </div>
-          </section>
-
-          {/* Botón Guardar en Sheets (Estilo Botón Pill Negro Grande) */}
-          {capturedImage && (
-            <button
-              type="button"
-              onClick={uploadToGoogleSheets}
-              disabled={isUploading || isCompressing || !numeroHC.trim() || !nombrePaciente.trim()}
-              className="w-full py-4.5 bg-[#1F2937] hover:bg-[#374151] active:bg-[#111827] text-white font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-md hover-scale cursor-pointer disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed"
-            >
-              {isUploading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Subiendo...
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="w-4.5 h-4.5" />
-                  Guardar en Google Sheets
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Bitácora de Estados en una tarjeta blanca con bordes claros y entradas ordenadas */}
-          <section className="bg-white rounded-[24px] p-5 border border-[#E5E7EB] shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
-            <div className="flex items-center gap-2 mb-3">
-              <Activity className="w-4.5 h-4.5 text-[#9CA3AF]" />
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#9CA3AF]">Registro de Estado</span>
-            </div>
-            
-            <div className="h-28 overflow-y-auto font-mono text-[10px] flex flex-col gap-2 scrollbar-thin">
-              {logs.length === 0 ? (
-                <div className="text-[#9CA3AF] text-center py-4">Sin actividades recientes</div>
-              ) : (
-                logs.map((log, idx) => (
-                  <div key={idx} className="bg-[#F9FAFB] rounded-xl p-2.5 flex items-start gap-2 border border-[#E5E7EB]">
-                    <span className="text-[#9CA3AF] text-[9px] mt-0.5 shrink-0">[{log.time}]</span>
-                    <span className={`flex-1 leading-snug
-                      ${log.type === 'success' ? 'text-[#34C759] font-bold' : ''}
-                      ${log.type === 'warning' ? 'text-[#D97706]' : ''}
-                      ${log.type === 'error' ? 'text-[#EF4444] font-bold animate-pulse' : ''}
-                      ${log.type === 'info' ? 'text-[#0071E3] font-semibold' : ''}
-                    `}>
-                      {log.type === 'success' && '✓ '}
-                      {log.type === 'error' && '✕ '}
-                      {log.type === 'warning' && '⚠ '}
-                      {log.text}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
+          {/* Live indicator */}
+          <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white shadow-sm">
+            <span className={`w-1.5 h-1.5 rounded-full ${isCameraActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              {isCameraActive ? 'Live' : 'Stand by'}
+            </span>
+          </div>
         </div>
 
-        {/* Footer */}
-        <footer className="mt-auto py-4 bg-[#F9FAFB] border-t border-[#F3F4F6] text-center">
-          <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-wider">
-            ExConverter • Friendly Escaner
-          </p>
-        </footer>
+        {/* ── Step Indicator ─────────────────────────────── */}
+        <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white shadow-[0_4px_24px_rgba(0,0,0,0.04)] px-5 py-3.5">
+          <div className="flex items-center gap-0">
+            {STEP_LABELS.map((label, i) => (
+              <div key={i} className="flex items-center flex-1 last:flex-none">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-300
+                    ${i < currentStep ? 'bg-[#6366F1] text-white shadow-[0_0_12px_rgba(99,102,241,0.35)]' : ''}
+                    ${i === currentStep ? 'bg-[#0F1117] text-white shadow-[0_0_12px_rgba(15,17,23,0.2)]' : ''}
+                    ${i > currentStep ? 'bg-slate-100 text-slate-400 border border-slate-200' : ''}
+                  `}>
+                    {i < currentStep ? '✓' : i + 1}
+                  </div>
+                  <span className={`text-[11px] font-bold transition-colors duration-300
+                    ${i === currentStep ? 'text-[#0F1117]' : i < currentStep ? 'text-[#6366F1]' : 'text-slate-400'}
+                  `}>{label}</span>
+                </div>
+                {i < STEP_LABELS.length - 1 && (
+                  <div className={`flex-1 h-px mx-3 transition-colors duration-500 ${i < currentStep ? 'bg-[#6366F1]/40' : 'bg-slate-200'}`} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Patient Data Card ─────────────────────────── */}
+        <div className="bg-white/70 backdrop-blur-xl rounded-[24px] border border-white shadow-[0_8px_32px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-5 pt-5 pb-1">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Identificación del Paciente</p>
+          </div>
+          <div className="px-5 pb-5 pt-4 flex flex-col gap-4">
+
+            {/* HC Input */}
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#6366F1] transition-colors duration-200">
+                <FileDigit className="w-4 h-4" />
+              </div>
+              <input
+                id="numeroHC"
+                type="text"
+                required
+                disabled={isUploading}
+                placeholder="Número de Historia Clínica / DNI"
+                value={numeroHC}
+                onChange={(e) => setNumeroHC(e.target.value)}
+                className="w-full pl-11 pr-4 py-3.5 text-sm font-medium text-[#0F1117] placeholder-slate-300 bg-[#F8F9FC] rounded-xl border-2 border-[#E2E6EF] focus:border-[#6366F1] focus:bg-white focus:outline-none transition-all duration-200 disabled:opacity-50"
+              />
+              {numeroHC && (
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-400" />
+              )}
+            </div>
+
+            {/* Nombre Input */}
+            <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#6366F1] transition-colors duration-200">
+                <User className="w-4 h-4" />
+              </div>
+              <input
+                id="nombrePaciente"
+                type="text"
+                required
+                disabled={isUploading}
+                placeholder="Nombre completo del paciente"
+                value={nombrePaciente}
+                onChange={(e) => setNombrePaciente(e.target.value)}
+                className="w-full pl-11 pr-4 py-3.5 text-sm font-medium text-[#0F1117] placeholder-slate-300 bg-[#F8F9FC] rounded-xl border-2 border-[#E2E6EF] focus:border-[#6366F1] focus:bg-white focus:outline-none transition-all duration-200 disabled:opacity-50"
+              />
+              {nombrePaciente && (
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-400" />
+              )}
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── Camera Viewfinder Card ─────────────────────── */}
+        <div className="bg-white/70 backdrop-blur-xl rounded-[24px] border border-white shadow-[0_8px_32px_rgba(0,0,0,0.04)] overflow-hidden">
+
+          {/* Camera label */}
+          <div className="px-5 pt-4 pb-0 flex items-center justify-between">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Visor de Captura</p>
+            {capturedImage && imageSizeKB && (
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-[#EEF2FF] text-[#6366F1] border border-[#E0E7FF]">
+                {imageSizeKB.toFixed(1)} KB
+              </span>
+            )}
+          </div>
+
+          {/* Viewport */}
+          <div className="mx-4 mt-3 rounded-[16px] overflow-hidden bg-[#0F1117] aspect-[4/3] relative flex items-center justify-center">
+
+            {capturedImage && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={capturedImage} alt="Captura" className="w-full h-full object-contain z-10" />
+            )}
+
+            <video
+              ref={videoRef}
+              autoPlay playsInline muted
+              className={`w-full h-full object-cover ${(!isCameraActive || capturedImage) ? 'hidden' : 'block'}`}
+            />
+
+            {!isCameraActive && !capturedImage && (
+              <div className="flex flex-col items-center gap-3 text-center px-6">
+                {/* Scanner frame icon instead of camera icon */}
+                <div className="relative w-16 h-16">
+                  <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-white/30 rounded-tl-lg" />
+                  <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-white/30 rounded-tr-lg" />
+                  <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-white/30 rounded-bl-lg" />
+                  <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-white/30 rounded-br-lg" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-1 h-8 bg-white/10 rounded-full" />
+                    <div className="w-8 h-1 bg-white/10 rounded-full absolute" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white/70">Cámara inactiva</p>
+                  <p className="text-[11px] text-white/30 mt-0.5 max-w-[180px]">Activa el visor para encuadrar y capturar el documento físico.</p>
+                </div>
+              </div>
+            )}
+
+            {isCompressing && (
+              <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20">
+                <RefreshCw className="w-6 h-6 text-[#6366F1] animate-spin" />
+                <span className="text-xs text-[#0F1117] font-bold">Optimizando imagen...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Camera controls */}
+          <div className="px-4 pb-4 pt-3.5 flex flex-col gap-2.5">
+            {!capturedImage ? (
+              !isCameraActive ? (
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="w-full py-3.5 bg-[#6366F1] hover:bg-[#5558E3] active:scale-[0.98] text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(99,102,241,0.30)] cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  Activar Cámara
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={capturePhoto}
+                    disabled={isCompressing}
+                    className="flex-1 py-3.5 bg-[#0F1117] hover:bg-[#1F2430] active:scale-[0.98] text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-[0_6px_20px_rgba(0,0,0,0.18)] cursor-pointer disabled:opacity-40"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    Tomar Foto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="px-4 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] border border-slate-200 text-slate-500 rounded-2xl flex items-center justify-center cursor-pointer"
+                    title="Apagar"
+                  >
+                    <CameraOff className="w-4 h-4" />
+                  </button>
+                </div>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={retakePhoto}
+                disabled={isUploading}
+                className="w-full py-3.5 bg-white hover:bg-slate-50 active:scale-[0.98] border-2 border-[#E2E6EF] text-[#0F1117] font-bold rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Nueva Captura
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Upload CTA ─────────────────────────────────── */}
+        {capturedImage && (
+          <button
+            type="button"
+            onClick={uploadToGoogleSheets}
+            disabled={isUploading || !numeroHC.trim() || !nombrePaciente.trim()}
+            className="w-full py-4 bg-[#0F1117] hover:bg-[#1F2430] active:scale-[0.98] disabled:opacity-30 disabled:scale-100 disabled:cursor-not-allowed text-white font-black rounded-2xl text-sm flex items-center justify-center gap-2.5 shadow-[0_8px_24px_rgba(15,17,23,0.20)] cursor-pointer"
+          >
+            {isUploading ? (
+              <>
+                <RefreshCw className="w-4.5 h-4.5 animate-spin" />
+                Subiendo a Google Sheets...
+              </>
+            ) : (
+              <>
+                <UploadCloud className="w-4.5 h-4.5" />
+                Guardar en Google Sheets
+                <ChevronRight className="w-4 h-4 opacity-50" />
+              </>
+            )}
+          </button>
+        )}
+
+        {/* ── Activity Log ───────────────────────────────── */}
+        <div className="bg-white/70 backdrop-blur-xl rounded-[24px] border border-white shadow-[0_8px_32px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Registro de Actividad</span>
+          </div>
+          <div className="px-4 py-3 h-[130px] overflow-y-auto flex flex-col gap-2 scrollbar-thin">
+            {logs.map((log, idx) => {
+              const iconMap = {
+                success: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-px" />,
+                error: <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-px animate-pulse" />,
+                warning: <Info className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-px" />,
+                info: <Info className="w-3.5 h-3.5 text-[#6366F1] shrink-0 mt-px" />,
+              };
+              const textMap = {
+                success: 'text-emerald-700',
+                error: 'text-rose-600',
+                warning: 'text-amber-700',
+                info: 'text-slate-600',
+              };
+              return (
+                <div key={idx} className="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-0">
+                  {iconMap[log.type]}
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className={`text-[11px] font-semibold leading-snug ${textMap[log.type]}`}>
+                      {log.text}
+                    </span>
+                    <span className="text-[9px] text-slate-300 font-medium">{log.time}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Footer ─────────────────────────────────────── */}
+        <p className="text-center text-[10px] text-slate-400 font-medium pb-2">
+          ExConverter · Digitalización Segura y Local
+        </p>
 
       </div>
     </div>
